@@ -52,23 +52,18 @@ impl<K: Eq + Hash, V: HeapSizeOf> MemoryLruCache<K, V> {
 
 	/// Insert an item.
 	pub fn insert(&mut self, key: K, val: V) {
-		let cap = self.inner.capacity();
-
-		// grow the cache as necessary; it operates on amount of items
-		// but we're working based on memory usage.
-		if self.inner.len() == cap && self.cur_size < self.max_size {
-			self.inner.set_capacity(cap * 2);
-		}
-
 		self.cur_size += heap_size_of(&val);
 
 		// account for any element displaced from the cache.
 		if let Some(lru) = self.inner.insert(key, val) {
+            println!("A");
 			self.cur_size -= heap_size_of(&lru);
 		}
+		println!("B");
 
 		// remove elements until we are below the memory target.
 		while self.cur_size > self.max_size {
+			println!("C");
 			match self.inner.remove_lru() {
 				Some((_, v)) => self.cur_size -= heap_size_of(&v),
 				_ => break,
@@ -109,5 +104,63 @@ mod tests {
 		assert!(cache.get_mut(&"world").is_some());
 
 		assert_eq!(cache.current_size(), size2);
+	}
+
+	#[test]
+	fn it_works2() {
+		let mut cache = MemoryLruCache::new(4);
+
+		let key1 = 1;
+		let val1 = true;
+		cache.insert(key1, val1);
+
+		assert!(cache.get_mut(&key1).is_some());
+
+		assert_eq!(cache.current_size(), 1);
+
+        let key2 = 2;
+		let val2 = false;
+		cache.insert(key2, val2);
+
+		assert!(cache.get_mut(&key1).is_some());
+		assert!(cache.get_mut(&key2).is_some());
+
+		assert_eq!(cache.current_size(), 2);
+
+        let key3 = 3;
+		let val3 = false;
+		cache.insert(key3, val3);
+
+		assert!(cache.get_mut(&key1).is_some());
+		assert!(cache.get_mut(&key2).is_some());
+		assert!(cache.get_mut(&key3).is_some());
+
+		assert_eq!(cache.current_size(), 3);
+		assert_eq!(cache.inner.len(), 3);
+
+		let key4 = 4;
+		let val4 = false;
+		cache.insert(key4, val4);
+
+		assert!(cache.get_mut(&key1).is_some());
+		assert!(cache.get_mut(&key2).is_some());
+		assert!(cache.get_mut(&key3).is_some());
+		assert!(cache.get_mut(&key4).is_some());
+
+		assert_eq!(cache.current_size(), 4);
+		assert_eq!(cache.inner.len(), 4);
+
+		let key5 = 5;
+		let val5 = false;
+		cache.insert(key5, val5);
+
+		assert!(cache.get_mut(&key1).is_none());
+		assert!(cache.get_mut(&key2).is_none());
+		assert!(cache.get_mut(&key3).is_some());
+		assert!(cache.get_mut(&key4).is_some());
+		assert!(cache.get_mut(&key5).is_some());
+
+		assert_eq!(cache.current_size(), 4);
+		assert_eq!(cache.inner.len(), 3);
 	}
 }
